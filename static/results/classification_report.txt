@@ -1,0 +1,11 @@
+                 precision    recall  f1-score   support
+
+      雏菊(daisy)      0.775     0.953     0.855       633
+ 蒲公英(dandelion)      0.938     0.845     0.889       898
+      玫瑰(roses)      0.906     0.794     0.846       641
+向日葵(sunflowers)      0.844     0.864     0.854       699
+    郁金香(tulips)      0.857     0.864     0.860       799
+
+       accuracy                          0.862      3670
+      macro avg      0.864     0.864     0.861      3670
+   weighted avg      0.869     0.862     0.863      3670

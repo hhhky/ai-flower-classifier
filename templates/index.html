@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>智能图像分类 — MindSpore CNN</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+
+    <!-- Header -->
+    <header class="header">
+        <div class="container">
+            <div class="header-inner">
+                <div>
+                    <h1>
+                        <span class="header-dot"></span>
+                        智能图像分类系统
+                    </h1>
+                    <p class="subtitle">基于 MindSpore 的卷积神经网络图像识别 &middot; Python 编程实践课程设计</p>
+                </div>
+                <span class="header-tag">MindSpore</span>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main -->
+    <main class="container">
+
+        <!-- 上传区域 -->
+        <section class="card">
+            <h2>上传图片</h2>
+            <p class="hint">支持 JPG / PNG / WebP &mdash; 可识别雏菊、蒲公英、玫瑰、向日葵、郁金香</p>
+
+            <div class="upload-area" id="uploadArea">
+                <div class="upload-content">
+                    <svg class="upload-icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                        <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+                        <circle cx="8.5" cy="8.5" r="1.5"/>
+                        <polyline points="21 15 16 10 5 21"/>
+                    </svg>
+                    <p class="upload-text">拖拽图片到此处，或点击下方按钮选择文件</p>
+                    <p class="upload-subtext">单次仅识别一张图片</p>
+                    <input type="file" id="fileInput" accept="image/*" hidden>
+                    <button class="btn btn-primary" id="btnSelectFile">
+                        选择图片
+                    </button>
+                </div>
+            </div>
+
+            <!-- 图片预览 -->
+            <div class="preview-area hidden" id="previewArea">
+                <img id="previewImg" src="" alt="预览图片">
+                <div class="btn-group">
+                    <button class="btn btn-primary" id="btnPredict" onclick="doPredict()">开始识别</button>
+                    <button class="btn btn-outline" onclick="resetForm()">重新选择</button>
+                </div>
+            </div>
+
+            <!-- 加载 -->
+            <div class="loading hidden" id="loading">
+                <div class="spinner"></div>
+                <p>模型推理中…</p>
+                <p class="loading-detail">MindSpore CNN forward pass</p>
+            </div>
+        </section>
+
+        <!-- 识别结果 -->
+        <section class="card result-section hidden" id="resultSection">
+            <div class="section-header">
+                <h2>识别结果</h2>
+                <button class="btn btn-outline btn-sm" onclick="resetForm()">上传新图片</button>
+            </div>
+
+            <div class="result-main">
+                <div class="result-image">
+                    <img id="resultImg" src="" alt="上传的图片">
+                </div>
+                <div class="result-detail">
+                    <div class="top-result">
+                        <span class="top-label" id="topLabel">—</span>
+                        <span class="top-confidence" id="topConfidence">—</span>
+                    </div>
+                    <p class="top-class-en" id="topClassEn"></p>
+                    <div class="confidence-bars" id="confidenceBars"></div>
+                </div>
+            </div>
+        </section>
+
+        <!-- 特征图 -->
+        <section class="card feature-section hidden" id="featureSection">
+            <h2>卷积特征图</h2>
+            <p class="hint">CNN 各层输出可视化 — 浅层检测边缘与纹理，深层理解语义结构。</p>
+            <div class="feature-grid" id="featureGrid"></div>
+        </section>
+
+        <!-- 技术架构 -->
+        <section class="card hidden">
+            <h2>技术架构</h2>
+            <p class="hint">项目完整技术栈与数据流</p>
+
+            <div class="tech-grid">
+                <div class="tech-cell">
+                    <div class="t-step">01 数据采集</div>
+                    <div class="t-title">网络爬虫</div>
+                    <div class="t-desc">requests + BeautifulSoup 采集花卉图片，构建 5 分类训练数据集</div>
+                </div>
+                <div class="tech-cell">
+                    <div class="t-step">02 模型训练</div>
+                    <div class="t-title">MindSpore CNN</div>
+                    <div class="t-desc">4 层卷积 + BatchNorm + 2 层全连接，数据增强与 Adam 优化</div>
+                </div>
+                <div class="tech-cell">
+                    <div class="t-step">03 Web 服务</div>
+                    <div class="t-title">Flask API</div>
+                    <div class="t-desc">图片上传接口、模型推理 pipeline、特征图生成</div>
+                </div>
+                <div class="tech-cell">
+                    <div class="t-step">04 可视化</div>
+                    <div class="t-title">结果评估</div>
+                    <div class="t-desc">置信度分析、混淆矩阵、卷积特征图可解释性展示</div>
+                </div>
+            </div>
+
+            <div class="tech-details">
+                <div class="tech-item"><strong>AI 框架</strong>&nbsp; 华为 MindSpore 2.9</div>
+                <div class="tech-item"><strong>模型架构</strong>&nbsp; 4×Conv + BN + 2×FC（类 VGG）</div>
+                <div class="tech-item"><strong>优化算法</strong>&nbsp; Adam，初始学习率 0.0001</div>
+                <div class="tech-item"><strong>损失函数</strong>&nbsp; CrossEntropyLoss</div>
+                <div class="tech-item"><strong>数据增强</strong>&nbsp; RandomResizedCrop + HorizontalFlip + ColorJitter</div>
+                <div class="tech-item"><strong>分类类别</strong>&nbsp; Daisy · Dandelion · Rose · Sunflower · Tulip</div>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="container">
+            <p>《Python 编程实践》期末课程设计</p>
+            <p class="footer-sub">数据采集 &sdot; 深度学习 &sdot; Web 交互</p>
+        </div>
+    </footer>
+
+    <!-- Toast -->
+    <div class="toast hidden" id="toast"></div>
+
+    <script src="/static/app.js"></script>
+</body>
+</html>

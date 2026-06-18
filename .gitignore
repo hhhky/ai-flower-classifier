@@ -1,0 +1,35 @@
+# 大文件/工具 — 不上传
+*.exe
+*.msi
+*.zip
+*.log
+
+# 中间 checkpoint（只保留最终模型）
+*-7_*.ckpt
+flower_cnn_best.ckpt
+
+# 临时/工具
+ngrok.exe
+cloudflared.msi
+obsutil.exe
+obsutil.zip
+ngrok.zip
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# 训练数据（太大）
+data/
+
+# 报告
+报告/
+
+# 上传的图片
+static/uploads/*
+!static/uploads/.gitkeep
+
+# 云端部署
+render.yaml
