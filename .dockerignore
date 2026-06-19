@@ -1,0 +1,14 @@
+.git
+.gitattributes
+__pycache__
+*.pyc
+.venv
+venv
+data
+报告
+static/uploads
+*.ckpt
+*.exe
+*.msi
+*.zip
+*.log

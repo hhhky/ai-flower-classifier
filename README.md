@@ -1,3 +1,12 @@
+---
+title: AI Flower Classifier
+emoji: 🌸
+colorFrom: pink
+colorTo: purple
+sdk: docker
+pinned: false
+---
+
 # 🌸 AI 图像智能识别系统
 
 ## 《Python编程实践》期末课程设计
