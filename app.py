@@ -1,194 +1,114 @@
 # -*- coding: utf-8 -*-
 """
-Flask Web 应用 —— AI 图像智能识别系统
-========================================
-功能：提供 Web 界面，用户上传图片 → AI 推理 → 展示结果
-这是"作品"的外壳 —— 让 AI 模型变成一个可交互的产品
-
-启动方式：
-    python app.py
-    浏览器访问 http://localhost:5000
+Hugging Face Spaces 部署版本 — Gradio 界面
+============================================
+与 Flask 版本共用 model.py，包装为 Gradio 接口。
+Hugging Face 自动从 GitHub 同步，免费部署，16GB RAM。
 """
 
-import os
 import sys
-import io
+from pathlib import Path
 
-# Windows GBK 终端 UTF-8 输出支持
 if hasattr(sys.stdout, 'reconfigure'):
     sys.stdout.reconfigure(encoding='utf-8')
     sys.stderr.reconfigure(encoding='utf-8')
-import base64
-import json
-from pathlib import Path
-from datetime import datetime
 
-from flask import Flask, render_template, request, jsonify
-from PIL import Image
+import gradio as gr
 import numpy as np
-import matplotlib
-matplotlib.use("Agg")
-import matplotlib.pyplot as plt
+from PIL import Image
 
-import mindspore as ms
-from mindspore import ops, context
-from mindspore.dataset import vision, transforms
+from model import load_trained_model, predict_image, extract_feature_maps, CLASS_NAMES_CN
 
-# 设置 MindSpore 环境
-context.set_context(mode=context.PYNATIVE_MODE, device_target="CPU")
+# 全局模型
+_net = None
 
-# 导入模型模块（ResNet-50 迁移学习，86.24% 准确率）
-from model import (
-    TransferNet, load_trained_model, predict_image, extract_feature_maps,
-    CLASS_NAMES, CLASS_NAMES_CN, IMAGE_SIZE, NUM_CLASSES,
-)
-
-# ============================================================
-# Flask 应用初始化
-# ============================================================
-app = Flask(__name__)
-app.config["MAX_CONTENT_LENGTH"] = 16 * 1024 * 1024  # 最大上传 16MB
-
-PROJECT_DIR = Path(__file__).parent
-UPLOAD_DIR = PROJECT_DIR / "static" / "uploads"
-RESULT_DIR = PROJECT_DIR / "static" / "results"
-UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
-RESULT_DIR.mkdir(parents=True, exist_ok=True)
-
-# 全局模型实例（延迟加载）
-_model = None
+def get_net():
+    global _net
+    if _net is None:
+        _net = load_trained_model()
+    return _net
 
 
-def get_model():
-    """获取或加载模型（单例模式）"""
-    global _model
-    if _model is None:
-        _model = load_trained_model()
-    return _model
+def classify_image(image):
+    """接收 PIL Image，返回预测结果和特征图"""
+    if image is None:
+        return None, "请上传一张花卉图片"
 
+    # 保存临时文件
+    tmp_path = Path("/tmp/upload.jpg")
+    image.save(str(tmp_path))
 
-# ============================================================
-# 特征图生成（Web 端调用）
-# ============================================================
+    net = get_net()
 
-def generate_feature_maps_for_web(image_path):
-    """为 Web 端生成特征图（Base64 返回），展示 ResNet-50 各层"看到了什么"."""
-    net = get_model()
-    return extract_feature_maps(net, image_path)
+    # 预测
+    results = predict_image(net, str(tmp_path))
 
+    # 构建文字结果
+    text_output = "## 🌸 识别结果\n\n"
+    for i, r in enumerate(results):
+        emoji = ["🥇", "🥈", "🥉"][i]
+        text_output += f"{emoji} **{r['class_name_cn']}** ({r['class_name']})\n"
+        text_output += f"   置信度: `{r['confidence']:.1f}%`\n\n"
 
-# ============================================================
-# 路由
-# ============================================================
+    text_output += "---\n"
+    text_output += "*ResNet-50 迁移学习 | 测试准确率 86.24%*"
 
-@app.route("/")
-def index():
-    """首页"""
-    return render_template("index.html")
-
-
-@app.route("/api/predict", methods=["POST"])
-def api_predict():
-    """
-    AI 预测 API
-    接收上传的图片 → 模型推理 → 返回分类结果
-    """
-    if "image" not in request.files:
-        return jsonify({"error": "请上传图片文件"}), 400
-
-    file = request.files["image"]
-    if file.filename == "":
-        return jsonify({"error": "文件名为空"}), 400
-
-    # 保存上传文件
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    filename = f"upload_{timestamp}.jpg"
-    save_path = UPLOAD_DIR / filename
-    file.save(str(save_path))
-
+    # 特征图
     try:
-        # 模型推理
-        net = get_model()
-        net.set_train(False)
+        fmaps = extract_feature_maps(net, str(tmp_path))
+        # 返回第一张特征图作为预览（Layer3 比较有代表性）
+        feature_gallery = [(f["image"], f["name"]) for f in fmaps]
+    except Exception:
+        feature_gallery = []
 
-        results = predict_image(net, str(save_path))
-
-        # 生成特征图预览
-        try:
-            feature_maps = generate_feature_maps_for_web(str(save_path))
-        except Exception as e:
-            print(f"  特征图生成失败: {e}")
-            feature_maps = []
-
-        # 读取上传图片的 base64 用于前端显示
-        with open(save_path, "rb") as f:
-            img_b64 = base64.b64encode(f.read()).decode("utf-8")
-
-        return jsonify({
-            "success": True,
-            "image": f"data:image/jpeg;base64,{img_b64}",
-            "predictions": results,
-            "feature_maps": feature_maps,
-            "top_result": results[0] if results else None,
-        })
-
-    except Exception as e:
-        return jsonify({"error": f"推理失败: {str(e)}"}), 500
+    return text_output, feature_gallery
 
 
-@app.route("/api/model_info", methods=["GET"])
-def api_model_info():
-    """获取模型信息"""
-    # 读取训练统计
-    stats_path = RESULT_DIR / "model_stats.json"
-    model_stats = None
-    if stats_path.exists():
-        with open(stats_path, "r", encoding="utf-8") as f:
-            model_stats = json.load(f)
+# Gradio 界面
+with gr.Blocks(title="🌸 AI 花卉识别系统", theme=gr.themes.Soft()) as demo:
+    gr.Markdown("""
+    # 🌸 AI 花卉智能识别系统
 
-    return jsonify({
-        "model_name": "ResNet-50 (Transfer Learning)",
-        "framework": "华为 MindSpore + mindcv",
-        "architecture": "ResNet-50 backbone + 5类分类头 (ImageNet预训练 → 微调)",
-        "input_size": f"{IMAGE_SIZE}×{IMAGE_SIZE}",
-        "num_classes": NUM_CLASSES,
-        "classes": [
-            {"en": en, "cn": cn} for en, cn in zip(CLASS_NAMES, CLASS_NAMES_CN)
-        ],
-        "stats": model_stats,
-        "accuracy": "86.24%",
-        "optimizer": "Adam (lr=0.001→0.0001 两阶段)",
-        "loss": "交叉熵 (CrossEntropy)",
-        "augmentation": "随机裁剪、水平翻转、旋转、颜色抖动",
-    })
+    **ResNet-50 迁移学习** | 测试准确率 **86.24%** | 5 类花卉分类
 
+    上传一张花卉照片，AI 会识别它是雏菊、蒲公英、玫瑰、向日葵还是郁金香。
+    """)
 
-# ============================================================
-# 启动
-# ============================================================
+    with gr.Row():
+        with gr.Column(scale=1):
+            input_img = gr.Image(type="pil", label="📷 上传花卉照片")
+            submit_btn = gr.Button("🔍 开始识别", variant="primary", size="lg")
+
+        with gr.Column(scale=1):
+            result_text = gr.Markdown(label="📊 识别结果")
+            feature_gallery = gr.Gallery(
+                label="🧠 AI 特征图可视化",
+                columns=1, rows=3,
+                height=400,
+            )
+
+    submit_btn.click(
+        fn=classify_image,
+        inputs=[input_img],
+        outputs=[result_text, feature_gallery],
+    )
+
+    gr.Markdown("""
+    ---
+    ### 关于这个 AI
+
+    - **模型架构**：ResNet-50（ImageNet 预训练） + 5 类分类头
+    - **训练方式**：两阶段迁移学习（冻结 backbone → 全网络微调）
+    - **框架**：华为 MindSpore + mindcv
+    - **测试集准确率**：86.24%
+
+    源代码：[GitHub](https://github.com/hhhky/ai-flower-classifier)
+    """)
+
 
 if __name__ == "__main__":
-    print()
-    print("╔══════════════════════════════════════════════════════╗")
-    print("║    🌸 AI 图像智能识别系统 —— Web 服务                   ║")
-    print("║    基于 MindSpore + Flask                            ║")
-    print("╚══════════════════════════════════════════════════════╝")
-    print()
-    print(f"  📡 服务地址: http://localhost:5000")
-    print(f"  🖼️  上传目录: {UPLOAD_DIR}")
-    print(f"  📊 结果目录: {RESULT_DIR}")
-    print()
-    print("  💡 提示：")
-    print("     1. 打开浏览器访问上述地址")
-    print("     2. 上传一张花卉照片")
-    print("     3. 查看 AI 识别结果和特征图")
-    print()
-
-    # 检查模型是否存在
-    model_path = PROJECT_DIR / "models" / "flower_cnn_final.ckpt"
-    if not model_path.exists():
-        print("  ⚠️  未找到训练好的模型！")
-        print("     请先运行: python train.py")
-        print()
-
-    app.run(host="0.0.0.0", port=5000, debug=True)
+    # 启动时加载模型
+    print("🔄 加载 ResNet-50 模型...")
+    get_net()
+    print("✅ 模型就绪，启动 Gradio 服务...")
+    demo.launch(server_name="0.0.0.0", server_port=7860)
